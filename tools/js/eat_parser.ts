@@ -12,9 +12,9 @@ interface ParseState {
   inArray: boolean;
 }
 
-const arrayHeaderRegex = /^(\w+)\[(\d*)\]\{([^}]*)\}:\s*$/;
-const blockHeaderRegex = /^(\w+)(?:\{([^}]*)\})?:\s*$/;
-const exactHeaderRegex = /^(\w+_exact):\s*$/;
+const arrayHeaderRegex = new RegExp(String.raw`^(\w+)\[(\d*)\]\{([^}]*)\}:\s*$`);
+const blockHeaderRegex = new RegExp(String.raw`^(\w+)(?:\{([^}]*)\})?:\s*$`);
+const exactHeaderRegex = new RegExp(String.raw`^(\w+_exact):\s*$`);
 
 export function parseEAT(text: string): EatDocument {
   const lines = text.split(/\r?\n/);
