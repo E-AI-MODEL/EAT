@@ -27,19 +27,21 @@ export function parseEAT(text: string): EatDocument {
     inArray: false,
   };
 
-  for (let rawLine of lines) {
+  for (const rawLine of lines) {
     const line = rawLine.replace(/\s+$/, "");
     const trimmed = line.trim();
 
-    if (!trimmed && !state.inMultiline) continue;
+    if (!trimmed && !state.inMultiline) {
+      continue;
+    }
 
     if (state.inMultiline && trimmed === '"""') {
       if (state.currentBlock) {
         doc[state.currentBlock] = state.multilineBuffer.join("\n");
       }
       state.inMultiline = false;
-      state.currentBlock = null;
       state.multilineBuffer = [];
+      state.currentBlock = null;
       continue;
     }
 
@@ -49,8 +51,11 @@ export function parseEAT(text: string): EatDocument {
     }
 
     if (trimmed.endsWith('"""')) {
-      const name = trimmed.split(":")[0];
-      state.currentBlock = name;
+      if (trimmed !== '"""') {
+        state.currentBlock = trimmed.split(":", 1)[0];
+      } else if (!state.currentBlock) {
+        continue;
+      }
       state.inMultiline = true;
       state.multilineBuffer = [];
       continue;
@@ -61,12 +66,17 @@ export function parseEAT(text: string): EatDocument {
       const [, name, , keysRaw] = arrayMatch;
       state.currentBlock = name;
       state.currentKeys = keysRaw.split(",").map((s) => s.trim());
-      state.inArray = True;
+      state.inArray = true;
       doc[name] = [];
       continue;
     }
 
-    if (state.inArray and state.currentBlock and state.currentKeys.length > 0 and trimmed.includes(",")) {
+    if (
+      state.inArray &&
+      state.currentBlock &&
+      state.currentKeys.length > 0 &&
+      trimmed.includes(",")
+    ) {
       const values = trimmed.split(",").map((s) => s.trim());
       const row: Record<string, any> = {};
       state.currentKeys.forEach((k, i) => {

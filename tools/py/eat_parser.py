@@ -42,8 +42,10 @@ def parse_eat(text: str) -> EatDocument:
             continue
 
         if trimmed.endswith('"""'):
-            name = trimmed.split(":", 1)[0]
-            current_block = name
+            if trimmed != '"""':
+                current_block = trimmed.split(":", 1)[0]
+            elif not current_block:
+                continue
             in_multiline = True
             multiline_buffer = []
             continue

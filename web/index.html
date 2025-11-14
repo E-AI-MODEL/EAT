@@ -169,7 +169,11 @@
 
       // start multiline
       if (trimmed.endsWith('"""')) {
-        currentBlock = trimmed.split(":")[0];
+        if (trimmed !== '"""') {
+          currentBlock = trimmed.split(":", 1)[0];
+        } else if (!currentBlock) {
+          continue;
+        }
         inMultiline = true;
         multilineBuffer = [];
         continue;
