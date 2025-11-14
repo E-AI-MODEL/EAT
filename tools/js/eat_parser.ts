@@ -1,7 +1,7 @@
 // eat_parser.ts
 // EAT → JSON parser and JSON → EAT serializer
 
-export type EatValue = string | string[] | Record<string, any> | Record<string, any>[];
+export type EatValue = string | boolean | string[] | Record<string, any> | Record<string, any>[];
 export interface EatDocument { [key: string]: EatValue; }
 
 interface ParseState {
@@ -31,7 +31,12 @@ export function parseEAT(text: string): EatDocument {
     const line = rawLine.replace(/\s+$/, "");
     const trimmed = line.trim();
 
-    if (!trimmed && !state.inMultiline) continue;
+    if (!trimmed && !state.inMultiline) {
+      if (state.currentBlock && state.currentKeys.length === 0 && !state.inArray) {
+        state.currentBlock = null;
+      }
+      continue;
+    }
 
     if (state.inMultiline && trimmed === '"""') {
       if (state.currentBlock) {
@@ -61,18 +66,36 @@ export function parseEAT(text: string): EatDocument {
       const [, name, , keysRaw] = arrayMatch;
       state.currentBlock = name;
       state.currentKeys = keysRaw.split(",").map((s) => s.trim());
-      state.inArray = True;
+      state.inArray = true;
       doc[name] = [];
       continue;
     }
 
-    if (state.inArray and state.currentBlock and state.currentKeys.length > 0 and trimmed.includes(",")) {
+    if (state.inArray && state.currentBlock && state.currentKeys.length > 0 && trimmed.includes(",")) {
       const values = trimmed.split(",").map((s) => s.trim());
       const row: Record<string, any> = {};
       state.currentKeys.forEach((k, i) => {
         row[k] = values[i] ?? null;
       });
       (doc[state.currentBlock] as any[]).push(row);
+      continue;
+    }
+
+    const inlineMatch = trimmed.match(/^(\w+):\s+(.+)$/);
+    if (inlineMatch) {
+      const [, name, rawValue] = inlineMatch;
+      let value: any = rawValue.trim();
+      if (value === "true") {
+        value = true;
+      } else if (value === "false") {
+        value = false;
+      } else if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      doc[name] = value;
+      state.currentBlock = null;
+      state.currentKeys = [];
+      state.inArray = false;
       continue;
     }
 
@@ -184,6 +207,12 @@ export function stringifyEAT(doc: EatDocument): string {
     if (typeof value === "string") {
       lines.push(`${key}:`);
       lines.push(`  ${value}`);
+      lines.push("");
+      continue;
+    }
+
+    if (typeof value === "boolean") {
+      lines.push(`${key}: ${value ? "true" : "false"}`);
       lines.push("");
       continue;
     }

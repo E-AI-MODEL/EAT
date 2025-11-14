@@ -4,12 +4,13 @@ Simple EAT → dict parser and dict → EAT serializer in Python.
 import re
 from typing import Any, Dict, List, Union
 
-EatValue = Union[str, List[str], Dict[str, Any], List[Dict[str, Any]]]
+EatValue = Union[str, bool, List[str], Dict[str, Any], List[Dict[str, Any]]]
 EatDocument = Dict[str, EatValue]
 
 array_header_re = re.compile(r'^(\w+)\[(\d*)\]\{([^}]*)\}:\s*$')
 block_header_re = re.compile(r'^(\w+)(?:\{([^}]*)\})?:\s*$')
 exact_header_re = re.compile(r'^(\w+_exact):\s*$')
+inline_kv_re = re.compile(r'^(\w+):\s+(.+)$')
 
 
 def parse_eat(text: str) -> EatDocument:
@@ -27,6 +28,8 @@ def parse_eat(text: str) -> EatDocument:
         trimmed = line.strip()
 
         if not trimmed and not in_multiline:
+            if current_block and not current_keys and not in_array:
+                current_block = None
             continue
 
         if in_multiline and trimmed == '"""':
@@ -62,6 +65,23 @@ def parse_eat(text: str) -> EatDocument:
             row = {k: (values[i] if i < len(values) else None) for i, k in enumerate(current_keys)}
             assert isinstance(doc[current_block], list)
             doc[current_block].append(row)
+            continue
+
+        m_inline = inline_kv_re.match(trimmed)
+        if m_inline:
+            name, raw_value = m_inline.groups()
+            value: Any = raw_value.strip()
+            lower = value.lower()
+            if lower == "true":
+                value = True
+            elif lower == "false":
+                value = False
+            elif (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            doc[name] = value
+            current_block = None
+            current_keys = []
+            in_array = False
             continue
 
         m_exact = exact_header_re.match(trimmed)
@@ -153,6 +173,11 @@ def stringify_eat(doc: EatDocument) -> str:
         if isinstance(value, str):
             lines.append(f"{key}:")
             lines.append(f"  {value}")
+            lines.append("")
+            continue
+
+        if isinstance(value, bool):
+            lines.append(f"{key}: {'true' if value else 'false'}")
             lines.append("")
             continue
 
