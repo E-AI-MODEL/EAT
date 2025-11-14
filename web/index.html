@@ -1,53 +1,523 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>EAT Playground</title>
+  <title>EAT Online Converter – Explicit Agent Text</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- CodeMirror 5 CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+
   <style>
-    body { font-family: system-ui, sans-serif; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem; }
-    textarea { width: 100%; height: 80vh; font-family: Consolas, monospace; font-size: 13px; }
-    pre { background: #111827; color: #e5e7eb; padding: 1rem; overflow: auto; height: 80vh; }
-    button { margin-bottom: .5rem; }
+    body {
+      background-color: #020617; /* slate-950 */
+    }
+    .CodeMirror {
+      height: calc(100vh - 220px);
+      border-radius: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .drop-zone {
+      border: 1px dashed rgba(148, 163, 184, 0.6);
+    }
+    .drop-zone.drag-over {
+      border-color: #38bdf8;
+      background-color: rgba(15, 23, 42, 0.7);
+    }
   </style>
 </head>
-<body>
-  <div>
-    <h2>EAT input</h2>
-    <button id="btn-parse">Parse → JSON</button>
-    <textarea id="eat-input"></textarea>
-  </div>
-  <div>
-    <h2>JSON output</h2>
-    <pre id="json-output">{}</pre>
-  </div>
+<body class="min-h-screen text-slate-100">
 
-  <script src="eat_parser.js"></script>
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur flex items-center justify-between px-6 py-3">
+    <div>
+      <h1 class="text-lg font-semibold tracking-tight">EAT Online Converter</h1>
+      <p class="text-xs text-slate-400">
+        Explicit Agent Text – EAT ⇄ JSON · client-side · token-efficiënte promptstructuur
+      </p>
+    </div>
+    <span class="text-[10px] text-slate-500">E-AI MODEL · EAT format</span>
+  </header>
+
+  <!-- Main layout -->
+  <main class="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 py-4 max-h-[calc(100vh-56px)]">
+    <!-- EAT Panel -->
+    <section class="flex flex-col bg-slate-900/70 border border-slate-800 rounded-2xl p-3 drop-zone" id="eat-drop-zone">
+      <div class="flex items-center justify-between mb-2 gap-2">
+        <div>
+          <h2 class="text-sm font-semibold">EAT input</h2>
+          <p class="text-[11px] text-slate-400">
+            Plak of drop hier je <code>.eat</code> tekst. Links → JSON, rechts → terug naar EAT.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <label class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer">
+            Upload .eat
+            <input type="file" id="eat-file-input" accept=".eat,.txt" class="hidden" />
+          </label>
+          <button id="btn-download-eat" class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">
+            Download .eat
+          </button>
+        </div>
+      </div>
+
+      <textarea id="eat-textarea" class="hidden"></textarea>
+      <div id="eat-editor-container" class="flex-1"></div>
+
+      <div class="flex justify-between mt-3 text-[11px] text-slate-400">
+        <span>Drag & drop: .eat / .txt</span>
+        <span id="eat-status" class="text-slate-500">Ready</span>
+      </div>
+    </section>
+
+    <!-- JSON Panel -->
+    <section class="flex flex-col bg-slate-900/70 border border-slate-800 rounded-2xl p-3 drop-zone" id="json-drop-zone">
+      <div class="flex items-center justify-between mb-2 gap-2">
+        <div>
+          <h2 class="text-sm font-semibold">JSON output / input</h2>
+          <p class="text-[11px] text-slate-400">
+            Resultaat van EAT → JSON, of plak JSON om terug naar EAT te converteren.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <label class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer">
+            Upload .json
+            <input type="file" id="json-file-input" accept=".json" class="hidden" />
+          </label>
+          <button id="btn-download-json" class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">
+            Download .json
+          </button>
+        </div>
+      </div>
+
+      <textarea id="json-textarea" class="hidden"></textarea>
+      <div id="json-editor-container" class="flex-1"></div>
+
+      <div class="flex justify-between mt-3 text-[11px] text-slate-400">
+        <span>Drag & drop: .json</span>
+        <span id="json-status" class="text-slate-500">Ready</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toolbar bottom -->
+  <footer class="border-t border-slate-800 bg-slate-950/80 backdrop-blur px-4 py-2 flex flex-wrap gap-2 items-center justify-between">
+    <div class="flex flex-wrap gap-2">
+      <button id="btn-eat-to-json" class="px-3 py-1 text-xs rounded bg-sky-600 hover:bg-sky-500">
+        EAT → JSON
+      </button>
+      <button id="btn-json-to-eat" class="px-3 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500">
+        JSON → EAT
+      </button>
+      <button id="btn-validate-eat" class="px-3 py-1 text-xs rounded bg-amber-600 hover:bg-amber-500">
+        Validate EAT
+      </button>
+      <button id="btn-clear" class="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600">
+        Clear both
+      </button>
+    </div>
+    <div class="text-[10px] text-slate-500">
+      All parsing happens client-side. No data is sent to a server.
+    </div>
+  </footer>
+
+  <!-- Logic -->
   <script>
-    const input = document.getElementById("eat-input");
-    const output = document.getElementById("json-output");
-    const btn = document.getElementById("btn-parse");
+  // -------------------------------
+  // EAT Parser / Serializer
+  // -------------------------------
 
-    // voorbeeld EAT
-    input.value = `identity{rol, domein}:
+  function parseEAT(text) {
+    const lines = text.split(/\\r?\\n/);
+    const doc = {};
+    let currentBlock = null;
+    let currentKeys = [];
+    let inMultiline = false;
+    let multilineBuffer = [];
+    let inArray = false;
+
+    const arrayHeaderRegex = /^(\\w+)\\[(\\d*)\\]\\{([^}]*)\\}:\\s*$/;
+    const blockHeaderRegex = /^(\\w+)(?:\\{([^}]*)\\})?:\\s*$/;
+    const exactHeaderRegex = /^(\\w+_exact):\\s*$/;
+
+    for (let rawLine of lines) {
+      const line = rawLine.replace(/\\s+$/, "");
+      const trimmed = line.trim();
+
+      if (!trimmed && !inMultiline) continue;
+
+      // end multiline
+      if (inMultiline && trimmed === '"""') {
+        if (currentBlock) {
+          doc[currentBlock] = multilineBuffer.join("\\n");
+        }
+        inMultiline = false;
+        currentBlock = null;
+        multilineBuffer = [];
+        continue;
+      }
+
+      if (inMultiline) {
+        multilineBuffer.push(line);
+        continue;
+      }
+
+      // start multiline
+      if (trimmed.endsWith('"""')) {
+        currentBlock = trimmed.split(":")[0];
+        inMultiline = true;
+        multilineBuffer = [];
+        continue;
+      }
+
+      // array header
+      const arrMatch = trimmed.match(arrayHeaderRegex);
+      if (arrMatch) {
+        const [, name, , keysRaw] = arrMatch;
+        currentBlock = name;
+        currentKeys = keysRaw.split(",").map(s => s.trim());
+        inArray = true;
+        doc[name] = [];
+        continue;
+      }
+
+      // row inside array
+      if (inArray && currentBlock && currentKeys.length > 0 && trimmed.includes(",")) {
+        const values = trimmed.split(",").map(s => s.trim());
+        const row = {};
+        currentKeys.forEach((k, i) => {
+          row[k] = values[i] !== undefined ? values[i] : null;
+        });
+        doc[currentBlock].push(row);
+        continue;
+      }
+
+      // exact header
+      const exactMatch = trimmed.match(exactHeaderRegex);
+      if (exactMatch) {
+        currentBlock = exactMatch[1];
+        currentKeys = [];
+        inArray = false;
+        continue;
+      }
+
+      // exact value
+      if (currentBlock && currentBlock.endsWith("_exact")) {
+        doc[currentBlock] = trimmed.replace(/^"|"$/g, "");
+        currentBlock = null;
+        continue;
+      }
+
+      // block header
+      const blockMatch = trimmed.match(blockHeaderRegex);
+      if (blockMatch) {
+        const [, name, keysRaw] = blockMatch;
+        currentBlock = name;
+        currentKeys = keysRaw ? keysRaw.split(",").map(s => s.trim()) : [];
+        inArray = false;
+        if (!keysRaw) {
+          doc[name] = [];
+        }
+        continue;
+      }
+
+      // keyed non-array line
+      if (currentBlock && currentKeys.length > 0 && !inArray) {
+        const values = trimmed.split(",").map(s => s.trim());
+        const obj = {};
+        currentKeys.forEach((k, i) => {
+          obj[k] = values[i] !== undefined ? values[i] : null;
+        });
+        doc[currentBlock] = obj;
+        currentBlock = null;
+        currentKeys = [];
+        continue;
+      }
+
+      // simple list block
+      if (currentBlock && currentKeys.length === 0 && !inArray) {
+        const val = trimmed.replace(/,$/, "");
+        if (!Array.isArray(doc[currentBlock])) {
+          doc[currentBlock] = [val];
+        } else {
+          doc[currentBlock].push(val);
+        }
+        continue;
+      }
+    }
+
+    return doc;
+  }
+
+  function stringifyEAT(doc) {
+    const lines = [];
+
+    for (const [key, value] of Object.entries(doc)) {
+      if (key.endsWith("_exact") && typeof value === "string") {
+        lines.push(key + ":");
+        lines.push('  "' + value + '"');
+        lines.push("");
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          lines.push(key + ":");
+          lines.push("");
+          continue;
+        }
+
+        if (typeof value[0] === "string") {
+          lines.push(key + ":");
+          value.forEach(v => lines.push("  " + v));
+          lines.push("");
+          continue;
+        }
+
+        const arr = value;
+        const keys = Object.keys(arr[0] || {});
+        lines.push(key + "[" + arr.length + "]{" + keys.join(", ") + "}:");
+        arr.forEach(row => {
+          const vals = keys.map(k => String(row[k] ?? ""));
+          lines.push("  " + vals.join(", "));
+        });
+        lines.push("");
+        continue;
+      }
+
+      if (typeof value === "object" && value !== null) {
+        const obj = value;
+        const keys = Object.keys(obj);
+        lines.push(key + "{" + keys.join(", ") + "}:");
+        const vals = keys.map(k => String(obj[k] ?? ""));
+        lines.push("  " + vals.join(", "));
+        lines.push("");
+        continue;
+      }
+
+      lines.push(key + ":");
+      lines.push("  " + value);
+      lines.push("");
+    }
+
+    return lines.join("\\n").trimEnd();
+  }
+
+  function validateEAT(text) {
+    try {
+      const doc = parseEAT(text);
+      if (!doc || typeof doc !== "object") {
+        return { ok: false, message: "Parsed document is empty or invalid." };
+      }
+      // simpele extra check: identity of mission is vaak gewenst
+      const keys = Object.keys(doc);
+      return {
+        ok: true,
+        message: "Valid EAT. Top-level keys: " + (keys.length ? keys.join(", ") : "(none)")
+      };
+    } catch (e) {
+      return { ok: false, message: "Parse error: " + e.message };
+    }
+  }
+
+  // -------------------------------
+  // CodeMirror + UI init
+  // -------------------------------
+  let eatEditor, jsonEditor;
+
+  function initEditors() {
+    const eatTextarea = document.getElementById("eat-textarea");
+    const jsonTextarea = document.getElementById("json-textarea");
+
+    eatEditor = CodeMirror(document.getElementById("eat-editor-container"), {
+      value:
+`identity{rol, domein}:
   data_analyst_agent, strategy
 
 mission:
   analyseer_informatie
   structureer_output
 
+style:
+  duidelijk, rustig, nl
+
+greeting_exact:
+  "Hallo. Ik ben je analytische assistent. Wat wil je onderzoeken?"
+
 workflow[2]{stap, actie}:
   1, vraag_context
-  2, hint`;
-
-    btn.addEventListener("click", () => {
-      try {
-        // parseEAT moet globaal beschikbaar zijn vanuit eat_parser.js
-        const doc = window.parseEAT(input.value);
-        output.textContent = JSON.stringify(doc, null, 2);
-      } catch (e) {
-        output.textContent = "Error: " + e.message;
-      }
+  2, hint`,
+      mode: "text/plain",
+      theme: "material-darker",
+      lineNumbers: true
     });
+
+    jsonEditor = CodeMirror(document.getElementById("json-editor-container"), {
+      value: "{\n  \n}",
+      mode: "application/json",
+      theme: "material-darker",
+      lineNumbers: true
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initEditors();
+    wireButtons();
+    wireDragAndDrop();
+    wireFileInputs();
+  });
+
+  function setEatStatus(msg, ok = true) {
+    const el = document.getElementById("eat-status");
+    el.textContent = msg;
+    el.className = "text-[11px] " + (ok ? "text-emerald-400" : "text-rose-400");
+  }
+
+  function setJsonStatus(msg, ok = true) {
+    const el = document.getElementById("json-status");
+    el.textContent = msg;
+    el.className = "text-[11px] " + (ok ? "text-emerald-400" : "text-rose-400");
+  }
+
+  function wireButtons() {
+    document.getElementById("btn-eat-to-json").onclick = () => {
+      try {
+        const eatText = eatEditor.getValue();
+        const json = parseEAT(eatText);
+        jsonEditor.setValue(JSON.stringify(json, null, 2));
+        setEatStatus("Parsed → JSON", true);
+        setJsonStatus("Updated from EAT", true);
+      } catch (e) {
+        setEatStatus("Parse error: " + e.message, false);
+      }
+    };
+
+    document.getElementById("btn-json-to-eat").onclick = () => {
+      try {
+        const jsonText = jsonEditor.getValue();
+        const data = JSON.parse(jsonText);
+        const eatText = stringifyEAT(data);
+        eatEditor.setValue(eatText);
+        setJsonStatus("JSON → EAT", true);
+        setEatStatus("Updated from JSON", true);
+      } catch (e) {
+        setJsonStatus("JSON error: " + e.message, false);
+      }
+    };
+
+    document.getElementById("btn-validate-eat").onclick = () => {
+      const eatText = eatEditor.getValue();
+      const res = validateEAT(eatText);
+      setEatStatus(res.message, res.ok);
+    };
+
+    document.getElementById("btn-clear").onclick = () => {
+      eatEditor.setValue("");
+      jsonEditor.setValue("{\n\n}");
+      setEatStatus("Cleared", true);
+      setJsonStatus("Cleared", true);
+    };
+
+    document.getElementById("btn-download-eat").onclick = () => {
+      const blob = new Blob([eatEditor.getValue()], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "agent.eat";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    document.getElementById("btn-download-json").onclick = () => {
+      const blob = new Blob([jsonEditor.getValue()], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "agent.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  function wireFileInputs() {
+    const eatInput = document.getElementById("eat-file-input");
+    eatInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        eatEditor.setValue(String(reader.result));
+        setEatStatus("Loaded: " + file.name, true);
+      };
+      reader.readAsText(file);
+    });
+
+    const jsonInput = document.getElementById("json-file-input");
+    jsonInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        jsonEditor.setValue(String(reader.result));
+        setJsonStatus("Loaded: " + file.name, true);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function wireDragAndDrop() {
+    const eatZone = document.getElementById("eat-drop-zone");
+    const jsonZone = document.getElementById("json-drop-zone");
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ["dragenter", "dragover", "dragleave", "drop"].forEach(ev => {
+      eatZone.addEventListener(ev, preventDefaults, false);
+      jsonZone.addEventListener(ev, preventDefaults, false);
+    });
+
+    ["dragenter", "dragover"].forEach(ev => {
+      eatZone.addEventListener(ev, () => eatZone.classList.add("drag-over"), false);
+      jsonZone.addEventListener(ev, () => jsonZone.classList.add("drag-over"), false);
+    });
+
+    ["dragleave", "drop"].forEach(ev => {
+      eatZone.addEventListener(ev, () => eatZone.classList.remove("drag-over"), false);
+      jsonZone.addEventListener(ev, () => jsonZone.classList.remove("drag-over"), false);
+    });
+
+    eatZone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || !dt.files.length) return;
+      const file = dt.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        eatEditor.setValue(String(reader.result));
+        setEatStatus("Dropped: " + file.name, true);
+      };
+      reader.readAsText(file);
+    });
+
+    jsonZone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || !dt.files.length) return;
+      const file = dt.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        jsonEditor.setValue(String(reader.result));
+        setJsonStatus("Dropped: " + file.name, true);
+      };
+      reader.readAsText(file);
+    });
+  }
   </script>
 </body>
 </html>
