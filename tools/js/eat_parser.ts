@@ -61,12 +61,12 @@ export function parseEAT(text: string): EatDocument {
       const [, name, , keysRaw] = arrayMatch;
       state.currentBlock = name;
       state.currentKeys = keysRaw.split(",").map((s) => s.trim());
-      state.inArray = True;
+      state.inArray = true;
       doc[name] = [];
       continue;
     }
 
-    if (state.inArray and state.currentBlock and state.currentKeys.length > 0 and trimmed.includes(",")) {
+    if (state.inArray && state.currentBlock && state.currentKeys.length > 0 && trimmed.includes(",")) {
       const values = trimmed.split(",").map((s) => s.trim());
       const row: Record<string, any> = {};
       state.currentKeys.forEach((k, i) => {
